@@ -1,0 +1,444 @@
+// ============================================================
+// E-Commerce Platform — Prisma Schema (MVP)
+// Phones, Accessories, Wearables, Home Appliances
+// COD launch | AED cost -> SDG selling price | Khartoum zones
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// CATALOG
+// ------------------------------------------------------------
+
+model Category {
+  id         String    @id @default(cuid())
+  nameAr     String
+  nameEn     String?
+  parentId   String?
+  parent     Category? @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryToCategory")
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  products              Product[]
+  specificationAttrs    SpecificationAttribute[]
+  markupRules           MarkupRule[] @relation("CategoryMarkup")
+}
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String
+  active   Boolean   @default(true)
+  products Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+  brandId      String?
+  brand        Brand?   @relation(fields: [brandId], references: [id])
+  model        String?
+  nameAr       String
+  nameEn       String?
+  description  String?
+  warranty     String?
+  productType  ProductType @default(DEVICE) // DEVICE or ACCESSORY
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  specifications      ProductSpecification[]
+  supplierProducts    SupplierProduct[]
+  markupOverride      ProductMarkupOverride?
+  priceHistory        PriceHistory[]
+  orderItems          OrderItem[]
+  images              ProductImage[]
+
+  // Accessory -> compatible devices
+  compatibleWith       ProductCompatibility[] @relation("AccessoryToDevice")
+  // Device -> accessories that fit it
+  compatibleAccessories ProductCompatibility[] @relation("DeviceToAccessory")
+}
+
+enum ProductType {
+  DEVICE
+  ACCESSORY
+}
+
+model SpecificationAttribute {
+  id          String   @id @default(cuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  name        String
+  comparable  Boolean  @default(false) // used for similar-product ranking
+  sortOrder   Int      @default(0)
+
+  values ProductSpecification[]
+}
+
+model ProductSpecification {
+  id          String                 @id @default(cuid())
+  productId   String
+  product     Product                @relation(fields: [productId], references: [id])
+  attributeId String
+  attribute   SpecificationAttribute @relation(fields: [attributeId], references: [id])
+  value       String
+  unit        String?
+
+  @@unique([productId, attributeId])
+}
+
+// Manual accessory <-> device compatibility mapping (FR-CAT-006)
+model ProductCompatibility {
+  id                  String  @id @default(cuid())
+  accessoryProductId  String
+  accessoryProduct    Product @relation("AccessoryToDevice", fields: [accessoryProductId], references: [id])
+  compatibleProductId String
+  compatibleProduct   Product @relation("DeviceToAccessory", fields: [compatibleProductId], references: [id])
+  active              Boolean @default(true)
+
+  @@unique([accessoryProductId, compatibleProductId])
+}
+
+// Product photo gallery. Files live in S3-compatible object storage
+// (not in Postgres) — this table only stores the reference URL and
+// display order. See src/services/storageService.js.
+model ProductImage {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  url        String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// SUPPLIERS & PRICING
+// ------------------------------------------------------------
+
+model Supplier {
+  id            String   @id @default(cuid())
+  name          String
+  contacts      String?
+  paymentTerms  String?
+  active        Boolean  @default(true)
+
+  supplierProducts SupplierProduct[]
+  payables         SupplierPayable[]
+  payments         SupplierPayment[]
+}
+
+model SupplierProduct {
+  id               String    @id @default(cuid())
+  supplierId       String
+  supplier         Supplier  @relation(fields: [supplierId], references: [id])
+  productId        String
+  product          Product   @relation(fields: [productId], references: [id])
+  supplierSku      String?
+  costAed          Decimal   @db.Decimal(12, 2)
+  availability     AvailabilityStatus @default(REQUIRES_CONFIRMATION)
+  lastConfirmedAt  DateTime?
+  warranty         String?
+
+  @@unique([supplierId, productId])
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  REQUIRES_CONFIRMATION
+  UNAVAILABLE
+  DISCONTINUED
+}
+
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  currencyPair  String   @default("AED_SDG")
+  rate          Decimal  @db.Decimal(12, 4)
+  effectiveFrom DateTime
+  enteredBy     String
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+}
+
+// Default markup by scope: GLOBAL | CATEGORY | PRODUCT
+model MarkupRule {
+  id            String    @id @default(cuid())
+  scopeType     MarkupScope
+  categoryId    String?
+  category      Category? @relation("CategoryMarkup", fields: [categoryId], references: [id])
+  percent       Decimal   @db.Decimal(5, 2)
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+}
+
+enum MarkupScope {
+  GLOBAL
+  CATEGORY
+}
+
+// Product-specific override (supersedes category/global) — requires reason
+model ProductMarkupOverride {
+  id             String    @id @default(cuid())
+  productId      String    @unique
+  product        Product   @relation(fields: [productId], references: [id])
+  percent        Decimal   @db.Decimal(5, 2)
+  reason         String
+  effectiveFrom  DateTime  @default(now())
+  effectiveTo    DateTime?
+  approvedBy     String
+}
+
+// Immutable, append-only price calculation log
+model PriceHistory {
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  costAed        Decimal  @db.Decimal(12, 2)
+  fxRate         Decimal  @db.Decimal(12, 4)
+  markupPercent  Decimal  @db.Decimal(5, 2)
+  calculatedSdg  Decimal  @db.Decimal(14, 2) // exact value, no rounding (per business rule)
+  effectiveAt    DateTime @default(now())
+  createdBy      String
+  createdAt      DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// CUSTOMERS, DELIVERY & ORDERS
+// ------------------------------------------------------------
+
+model Customer {
+  id         String    @id @default(cuid())
+  name       String
+  mobile     String    @unique
+  email      String?
+  createdAt  DateTime  @default(now())
+  riskFlags  String?
+
+  addresses Address[]
+  orders    Order[]
+  otps      OTPVerification[]
+}
+
+model Address {
+  id           String       @id @default(cuid())
+  customerId   String
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  zoneId       String
+  zone         DeliveryZone @relation(fields: [zoneId], references: [id])
+  addressText  String
+  landmark     String?
+}
+
+model DeliveryZone {
+  id       String   @id @default(cuid())
+  name     String
+  feeSdg   Decimal  @db.Decimal(12, 2)
+  slaHours Int      @default(24)
+  active   Boolean  @default(true)
+
+  addresses Address[]
+  orders    Order[]
+}
+
+model Order {
+  id            String       @id @default(cuid())
+  customerId    String
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  status        OrderStatus  @default(NEW)
+  zoneId        String
+  zone          DeliveryZone @relation(fields: [zoneId], references: [id])
+  subtotal      Decimal      @db.Decimal(14, 2)
+  deliveryFee   Decimal      @db.Decimal(12, 2)
+  total         Decimal      @db.Decimal(14, 2)
+  otpRequired   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  items          OrderItem[]
+  statusHistory  OrderStatusHistory[]
+  otps           OTPVerification[]
+  delivery       Delivery?
+  cashCollection CashCollection?
+}
+
+enum OrderStatus {
+  NEW
+  VERIFICATION
+  CONFIRMATION
+  RESERVED
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CASH_COLLECTED
+  SUPPLIER_PAID
+  COMPLETED
+  CANCELLED
+  VERIFICATION_FAILED
+  SUPPLIER_OUT_OF_STOCK
+  DELIVERY_FAILED
+  RETURNED
+}
+
+model OrderItem {
+  id                String    @id @default(cuid())
+  orderId           String
+  order             Order     @relation(fields: [orderId], references: [id])
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id])
+  qty               Int
+  supplierId        String?
+  unitPriceSdg      Decimal   @db.Decimal(14, 2) // locked snapshot
+  costAedSnapshot   Decimal   @db.Decimal(12, 2)
+  fxSnapshot        Decimal   @db.Decimal(12, 4)
+  markupSnapshot    Decimal   @db.Decimal(5, 2)
+
+  supplierPayables SupplierPayable[]
+}
+
+model OrderStatusHistory {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  fromStatus String?
+  toStatus   String
+  actor      String
+  reason     String?
+  timestamp  DateTime @default(now())
+}
+
+model OTPVerification {
+  id                String    @id @default(cuid())
+  orderId           String?
+  order             Order?    @relation(fields: [orderId], references: [id])
+  customerId        String?
+  customer          Customer? @relation(fields: [customerId], references: [id])
+  destinationPhone  String?
+  destinationEmail  String?
+  channelsSent      Json      // array of channel names actually dispatched, e.g. ["EMAIL","WHATSAPP"]
+  tokenHash         String
+  expiry            DateTime
+  attempts          Int       @default(0)
+  status            String    @default("PENDING")
+  createdAt         DateTime  @default(now())
+}
+
+// Generic key-value store for dashboard-configurable settings
+// (OTP threshold, expiry, attempt limits, and anything else that
+// should not be hardcoded/env-only — editable from Settings screen)
+model Setting {
+  key       String   @id
+  value     String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+}
+
+// Per-channel OTP delivery provider config — dashboard-editable so the
+// endpoint/provider can be swapped without a code deploy (D-007).
+model NotificationProvider {
+  id             String              @id @default(cuid())
+  channel        NotificationChannel @unique
+  providerName   String?
+  apiEndpoint    String?
+  apiKey         String?
+  fromIdentifier String?             // sender email address or WhatsApp sender number/ID
+  active         Boolean             @default(false)
+  updatedBy      String?
+  updatedAt      DateTime            @updatedAt
+}
+
+// ------------------------------------------------------------
+// FULFILLMENT & FINANCE
+// ------------------------------------------------------------
+
+model Delivery {
+  id          String    @id @default(cuid())
+  orderId     String    @unique
+  order       Order     @relation(fields: [orderId], references: [id])
+  assignedTo  String?
+  status      String    @default("PENDING")
+  dispatchAt  DateTime?
+  deliveredAt DateTime?
+  outcome     String?
+}
+
+model CashCollection {
+  id                     String   @id @default(cuid())
+  orderId                String   @unique
+  order                  Order    @relation(fields: [orderId], references: [id])
+  amount                 Decimal  @db.Decimal(14, 2)
+  collectedBy            String
+  collectedAt            DateTime @default(now())
+  reconciliationStatus   String   @default("PENDING")
+}
+
+model SupplierPayable {
+  id           String    @id @default(cuid())
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  orderItemId  String
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id])
+  amount       Decimal   @db.Decimal(14, 2)
+  currency     String    @default("SDG")
+  dueDate      DateTime?
+  status       String    @default("OUTSTANDING")
+  createdAt    DateTime  @default(now())
+}
+
+model SupplierPayment {
+  id          String   @id @default(cuid())
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    String   @default("SDG")
+  paidAt      DateTime @default(now())
+  reference   String?
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String
+  entity     String
+  entityId   String
+  action     String
+  beforeJson Json?
+  afterJson  Json?
+  timestamp  DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// USERS & RBAC (dashboard staff)
+// ------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  mfaEnabled   Boolean  @default(false)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+enum UserRole {
+  SYSTEM_ADMIN
+  OPERATIONS
+  PRICING
+  FINANCE
+  DELIVERY
+  READ_ONLY_MANAGEMENT
+}

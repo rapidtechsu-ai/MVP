@@ -1,0 +1,46 @@
+/* Design tokens from Ecommerce_UIUX_Developer_Handoff_v1.md */
+:root {
+  --color-primary: #6D28D9;
+  --color-secondary: #8B5CF6;
+  --color-success: #0F9F6E;
+  --color-warning: #F59E0B;
+  --color-danger: #DC2626;
+  --color-text: #172033;
+  --color-canvas: #F4F6FA;
+
+  --font-arabic: 'Noto Sans Arabic', 'IBM Plex Sans Arabic', sans-serif;
+  --spacing-unit: 8px;
+  --radius-sm: 12px;
+  --radius-lg: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-arabic);
+  font-size: 14px; /* minimum mobile body size per UI spec */
+}
+
+/* Numbers, SKUs, and model strings must keep LTR isolation inside RTL layout */
+.ltr-isolate {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 44px; /* accessibility: min touch target */
+  min-width: 44px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
