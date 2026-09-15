@@ -1,3 +1,10 @@
+require('dotenv').config(); // Loads .env locally. On Render/Railway this
+// is a harmless no-op since those platforms inject env vars directly —
+// but without this line, `npm run dev` / `node src/app.js` run locally
+// never sees DATABASE_URL, JWT_SECRET, etc. even if .env is filled in
+// correctly, since plain `node` doesn't auto-load .env the way the
+// Prisma CLI does.
+
 const express = require('express');
 const cors = require('cors');
 

@@ -9,6 +9,11 @@
  * (safe to re-run — uses upsert/skip-if-exists patterns throughout)
  */
 
+require('dotenv').config(); // FIX (2026-09-13): plain `node` scripts don't
+// auto-load .env the way the Prisma CLI does — without this line,
+// DATABASE_URL is invisible to this script even if .env is correctly
+// filled in, causing "Environment variable not found: DATABASE_URL".
+
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
