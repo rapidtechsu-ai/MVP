@@ -1,13 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import { useCart } from '../../context/CartContext';
 import { colors } from '../../lib/tokens';
 import { createOrder } from '../../lib/api';
 
+// FIX (2026-09-13): Next.js requires useSearchParams() to be used inside
+// a <Suspense> boundary, or `next build` fails with "useSearchParams()
+// should be wrapped in a suspense boundary". Logic moved to CheckoutPageInner.
 export default function CheckoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutPageInner />
+    </Suspense>
+  );
+}
+
+function CheckoutPageInner() {
   const { items, subtotal, clearCart } = useCart();
   const router = useRouter();
   const searchParams = useSearchParams();

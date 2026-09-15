@@ -1,3 +1,12 @@
+// FIX (2026-09-13): without this, Next.js tries to statically
+// pre-render this page at BUILD time by fetching from the live
+// backend. If the backend is asleep (e.g. Render free-tier cold
+// start) or briefly unreachable, the build itself times out and
+// fails entirely. force-dynamic makes this page render fresh on
+// every request instead, which is correct anyway since it shows
+// live inventory/price/order data that must never be stale.
+export const dynamic = 'force-dynamic';
+
 import { getSupplierPayables } from '../../../../lib/adminApi';
 import { colors } from '../../../../lib/tokens';
 import NotImplementedNotice from '../../../../components/admin/NotImplementedNotice';

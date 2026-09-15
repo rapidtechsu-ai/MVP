@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../../components/Header';
 import { colors } from '../../../lib/tokens';
@@ -11,7 +11,18 @@ const CHANNEL_LABELS = {
   EMAIL: 'البريد الإلكتروني',
 };
 
+// FIX (2026-09-13): Next.js requires useSearchParams() to be used inside
+// a <Suspense> boundary, or `next build` fails with "useSearchParams()
+// should be wrapped in a suspense boundary". Logic moved to OtpPageInner.
 export default function OtpPage() {
+  return (
+    <Suspense fallback={null}>
+      <OtpPageInner />
+    </Suspense>
+  );
+}
+
+function OtpPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');

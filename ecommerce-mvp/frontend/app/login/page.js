@@ -1,12 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import { colors } from '../../lib/tokens';
 import { requestCustomerLoginOtp, verifyCustomerLoginOtp } from '../../lib/api';
 
+// FIX (2026-09-13): Next.js requires any component using useSearchParams()
+// to be wrapped in <Suspense>, since query params aren't known at build
+// time. Without this, `next build` fails with:
+// "useSearchParams() should be wrapped in a suspense boundary".
+// The actual page logic moved into LoginPageInner; this default export
+// just adds the required Suspense boundary around it.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/account';
