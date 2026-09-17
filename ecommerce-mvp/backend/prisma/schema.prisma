@@ -52,6 +52,7 @@ model Product {
   description  String?
   warranty     String?
   productType  ProductType @default(DEVICE) // DEVICE or ACCESSORY
+  deliverySpeed DeliverySpeed @default(STANDARD) // STANDARD (24h) or RAPID, admin-set per product
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -72,6 +73,11 @@ model Product {
 enum ProductType {
   DEVICE
   ACCESSORY
+}
+
+enum DeliverySpeed {
+  STANDARD // 24-hour delivery (default)
+  RAPID    // expedited delivery, admin-flagged per product
 }
 
 model SpecificationAttribute {

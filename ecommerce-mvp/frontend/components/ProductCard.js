@@ -28,20 +28,56 @@ export default function ProductCard({ product }) {
       }}
     >
       {product.images?.[0] ? (
-        <img
-          src={product.images[0].url}
-          alt={product.nameAr}
-          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
-        />
+        <div style={{ position: 'relative' }}>
+          <img
+            src={product.images[0].url}
+            alt={product.nameAr}
+            style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+          />
+          {product.deliverySpeed === 'RAPID' && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: '#6D28D9',
+                color: '#fff',
+                fontSize: 9,
+                padding: '2px 6px',
+                borderRadius: 6,
+              }}
+            >
+              ⚡ سريع
+            </span>
+          )}
+        </div>
       ) : (
-        <div
-          style={{
-            aspectRatio: '1',
-            background: '#F4F6FA',
-            borderRadius: 8,
-            marginBottom: 8,
-          }}
-        />
+        <div style={{ position: 'relative' }}>
+          <div
+            style={{
+              aspectRatio: '1',
+              background: '#F4F6FA',
+              borderRadius: 8,
+              marginBottom: 8,
+            }}
+          />
+          {product.deliverySpeed === 'RAPID' && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: '#6D28D9',
+                color: '#fff',
+                fontSize: 9,
+                padding: '2px 6px',
+                borderRadius: 6,
+              }}
+            >
+              ⚡ سريع
+            </span>
+          )}
+        </div>
       )}
       <p style={{ fontSize: 12, margin: '0 0 4px', lineHeight: 1.4 }}>{product.nameAr}</p>
       {price != null && (

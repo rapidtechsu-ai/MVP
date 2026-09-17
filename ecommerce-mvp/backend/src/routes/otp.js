@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { sendOtpCode } = require('../services/notificationService');
-const { getOtpExpiryMinutes, getOtpMaxAttempts } = require('../services/settingsService');
+const { getOtpExpiryMinutes, getOtpMaxAttempts, isOtpTestBypassEnabled } = require('../services/settingsService');
 
 const prisma = new PrismaClient();
 
@@ -79,9 +79,16 @@ router.post('/verify', async (req, res, next) => {
       return res.status(400).json({ error: 'Maximum attempts exceeded. Please request a new code.' });
     }
 
+    // Testing convenience (dashboard-toggleable, OFF by default): accept
+    // "0000" as always-valid so QA/demos don't need to read real codes
+    // out of server logs. Does not consume an attempt, and only applies
+    // when explicitly enabled in Settings.
+    const testBypassEnabled = await isOtpTestBypassEnabled();
+    const isTestBypass = testBypassEnabled && code === '0000';
+
     const tokenHash = crypto.createHash('sha256').update(code).digest('hex');
 
-    if (tokenHash !== otp.tokenHash) {
+    if (!isTestBypass && tokenHash !== otp.tokenHash) {
       await prisma.oTPVerification.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },

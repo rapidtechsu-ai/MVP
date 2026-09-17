@@ -153,6 +153,66 @@ export async function setMarkupOverride({ productId, percent, reason }) {
   return handle(res);
 }
 
+export async function updateProductDeliverySpeed(productId, deliverySpeed) {
+  const res = await fetch(`${API_BASE_URL}/admin/products/${productId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ deliverySpeed }),
+  });
+  return handle(res);
+}
+
+export async function updateProduct(productId, data) {
+  const res = await fetch(`${API_BASE_URL}/admin/products/${productId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handle(res);
+}
+
+export async function createProduct(data) {
+  const res = await fetch(`${API_BASE_URL}/admin/products`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handle(res);
+}
+
+export async function getBrands() {
+  const res = await fetch(`${API_BASE_URL}/admin/products/brands`, { cache: 'no-store', headers: authHeaders() });
+  return handle(res, []);
+}
+
+export async function getCategoriesForAdmin() {
+  const res = await fetch(`${API_BASE_URL}/catalog/categories`, { cache: 'no-store', headers: authHeaders() });
+  return handle(res, []);
+}
+
+export async function getDeviceProducts({ search, excludeId } = {}) {
+  const query = new URLSearchParams({ ...(search && { search }), ...(excludeId && { excludeId }) }).toString();
+  const res = await fetch(`${API_BASE_URL}/admin/products/devices?${query}`, { cache: 'no-store', headers: authHeaders() });
+  return handle(res, []);
+}
+
+export async function addProductCompatibility(productId, deviceId) {
+  const res = await fetch(`${API_BASE_URL}/admin/products/${productId}/compatibility`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ deviceId }),
+  });
+  return handle(res);
+}
+
+export async function removeProductCompatibility(productId, deviceId) {
+  const res = await fetch(`${API_BASE_URL}/admin/products/${productId}/compatibility/${deviceId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handle(res);
+}
+
 export async function previewPrice({ costAed, markupPercent, fxRate }) {
   const query = new URLSearchParams({ costAed, markupPercent, fxRate }).toString();
   const res = await fetch(`${API_BASE_URL}/admin/pricing/preview?${query}`, { cache: 'no-store', headers: authHeaders() });

@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { sendOtpCode } = require('../services/notificationService');
-const { getOtpExpiryMinutes, getOtpMaxAttempts } = require('../services/settingsService');
+const { getOtpExpiryMinutes, getOtpMaxAttempts, isOtpTestBypassEnabled } = require('../services/settingsService');
 const { signToken } = require('../services/authService');
 
 const prisma = new PrismaClient();
@@ -90,7 +90,13 @@ router.post('/verify-otp', async (req, res, next) => {
     }
 
     const tokenHash = crypto.createHash('sha256').update(code).digest('hex');
-    if (tokenHash !== otp.tokenHash) {
+
+    // Testing convenience (dashboard-toggleable, OFF by default) — see
+    // src/routes/otp.js for the matching order-verification version.
+    const testBypassEnabled = await isOtpTestBypassEnabled();
+    const isTestBypass = testBypassEnabled && code === '0000';
+
+    if (!isTestBypass && tokenHash !== otp.tokenHash) {
       await prisma.oTPVerification.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
       return res.status(400).json({ error: 'Invalid code.' });
     }

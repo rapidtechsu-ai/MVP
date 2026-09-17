@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { href: '/category', label: 'الأقسام', icon: '▤' },
   { href: '/cart', label: 'السلة', icon: '🛒' },
   { href: '/orders', label: 'طلباتي', icon: '☰' },
-  { href: '/account', label: 'حسابي', icon: '☺' },
+  { href: '/account', label: 'حسابي', icon: '👳‍♂️' },
 ];
 
 export default function BottomNav() {

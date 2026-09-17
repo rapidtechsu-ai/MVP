@@ -19,10 +19,12 @@ const CATEGORIES = [
   { id: 'appliances', label: 'أجهزة منزلية', icon: '🏠' },
 ];
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }) {
+  const deliverySpeed = searchParams?.deliverySpeed === 'RAPID' ? 'RAPID' : null;
+
   let products = [];
   try {
-    products = await getProducts();
+    products = await getProducts(deliverySpeed ? { deliverySpeed } : {});
   } catch (e) {
     products = [];
   }
@@ -69,33 +71,63 @@ export default async function HomePage() {
             background: '#EDE6FB',
             borderRadius: 12,
             padding: 14,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
           }}
         >
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 500, margin: '0 0 2px', color: colors.primary }}>
-              توصيل خلال 24 ساعة
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <p style={{ fontSize: 12, margin: 0, color: colors.textSecondary }}>
               الدفع عند الاستلام متاح
             </p>
+            <span style={{ fontSize: 24 }}>🚚</span>
           </div>
-          <span style={{ fontSize: 28 }}>🚚</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a
+              href="/"
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 13,
+                fontWeight: 500,
+                padding: '8px 0',
+                borderRadius: 8,
+                background: !deliverySpeed ? colors.primary : colors.surface,
+                color: !deliverySpeed ? '#fff' : colors.text,
+              }}
+            >
+              توصيل خلال 24 ساعة
+            </a>
+            <a
+              href="/?deliverySpeed=RAPID"
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 13,
+                fontWeight: 500,
+                padding: '8px 0',
+                borderRadius: 8,
+                background: deliverySpeed === 'RAPID' ? colors.primary : colors.surface,
+                color: deliverySpeed === 'RAPID' ? '#fff' : colors.text,
+              }}
+            >
+              ⚡ توصيل سريع
+            </a>
+          </div>
         </div>
       </section>
 
       <section style={{ padding: '0 16px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>الأكثر مبيعا</p>
+          <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>
+            {deliverySpeed === 'RAPID' ? 'منتجات التوصيل السريع' : 'الأكثر مبيعا'}
+          </p>
           <a href="/category" style={{ fontSize: 12, color: colors.primary }}>
             عرض الكل
           </a>
         </div>
 
         {bestSellers.length === 0 ? (
-          <p style={{ fontSize: 12, color: colors.textMuted }}>لا توجد منتجات بعد.</p>
+          <p style={{ fontSize: 12, color: colors.textMuted }}>
+            {deliverySpeed === 'RAPID' ? 'لا توجد منتجات توصيل سريع حاليا.' : 'لا توجد منتجات بعد.'}
+          </p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             {bestSellers.map((p) => (

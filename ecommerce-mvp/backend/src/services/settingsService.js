@@ -15,6 +15,11 @@ const DEFAULTS = {
   otp_threshold_sdg: '1000000',
   otp_expiry_minutes: '5',
   otp_max_attempts: '3',
+  // Testing convenience: when enabled, "0000" is always accepted as a
+  // valid OTP code regardless of what was actually sent. Defaults to
+  // OFF so this never accidentally ships enabled — must be explicitly
+  // turned on from the dashboard (Settings, SYSTEM_ADMIN only).
+  otp_test_bypass_enabled: 'false',
 };
 
 async function getSetting(key, fallback) {
@@ -53,6 +58,11 @@ async function getOtpMaxAttempts() {
   return Number(value);
 }
 
+async function isOtpTestBypassEnabled() {
+  const value = await getSetting('otp_test_bypass_enabled');
+  return value === 'true';
+}
+
 module.exports = {
   getSetting,
   setSetting,
@@ -60,5 +70,6 @@ module.exports = {
   getOtpThresholdSdg,
   getOtpExpiryMinutes,
   getOtpMaxAttempts,
+  isOtpTestBypassEnabled,
   DEFAULTS,
 };

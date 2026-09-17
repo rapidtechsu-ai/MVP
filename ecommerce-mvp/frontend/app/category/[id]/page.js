@@ -21,10 +21,11 @@ const CATEGORY_LABELS = {
 
 export default async function CategoryPage({ params, searchParams }) {
   const categoryLabel = CATEGORY_LABELS[params.id] || 'المنتجات';
+  const deliverySpeed = searchParams?.deliverySpeed === 'RAPID' ? 'RAPID' : null;
 
   let products = [];
   try {
-    products = await getProducts({ categoryId: params.id });
+    products = await getProducts({ categoryId: params.id, ...(deliverySpeed && { deliverySpeed }) });
   } catch (e) {
     products = [];
   }
@@ -34,6 +35,37 @@ export default async function CategoryPage({ params, searchParams }) {
       <Header title={categoryLabel} backHref="/" />
 
       <section style={{ padding: '12px 16px' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <a
+            href={`/category/${params.id}`}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 12,
+              padding: '7px 0',
+              borderRadius: 8,
+              background: !deliverySpeed ? colors.primary : colors.canvas,
+              color: !deliverySpeed ? '#fff' : colors.text,
+            }}
+          >
+            توصيل خلال 24 ساعة
+          </a>
+          <a
+            href={`/category/${params.id}?deliverySpeed=RAPID`}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 12,
+              padding: '7px 0',
+              borderRadius: 8,
+              background: deliverySpeed === 'RAPID' ? colors.primary : colors.canvas,
+              color: deliverySpeed === 'RAPID' ? '#fff' : colors.text,
+            }}
+          >
+            ⚡ توصيل سريع
+          </a>
+        </div>
+
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto' }}>
           <select style={{ fontSize: 12, height: 32, borderRadius: 8, border: `1px solid ${colors.border}` }}>
             <option>كل الماركات</option>

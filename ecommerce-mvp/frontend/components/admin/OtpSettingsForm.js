@@ -16,6 +16,7 @@ export default function OtpSettingsForm() {
   const [threshold, setThreshold] = useState('');
   const [expiryMinutes, setExpiryMinutes] = useState('');
   const [maxAttempts, setMaxAttempts] = useState('');
+  const [testBypassEnabled, setTestBypassEnabled] = useState(false);
   const [thresholdStatus, setThresholdStatus] = useState(null);
 
   const [providers, setProviders] = useState([]);
@@ -25,6 +26,7 @@ export default function OtpSettingsForm() {
       setThreshold(settings.otp_threshold_sdg || '1000000');
       setExpiryMinutes(settings.otp_expiry_minutes || '5');
       setMaxAttempts(settings.otp_max_attempts || '3');
+      setTestBypassEnabled(settings.otp_test_bypass_enabled === 'true');
       setProviders(provs);
       setLoading(false);
     });
@@ -36,6 +38,7 @@ export default function OtpSettingsForm() {
         otp_threshold_sdg: threshold,
         otp_expiry_minutes: expiryMinutes,
         otp_max_attempts: maxAttempts,
+        otp_test_bypass_enabled: String(testBypassEnabled),
       });
       setThresholdStatus({ type: 'success', text: 'تم حفظ الإعدادات.' });
     } catch (e) {
@@ -88,6 +91,35 @@ export default function OtpSettingsForm() {
             <input value={maxAttempts} onChange={(e) => setMaxAttempts(e.target.value)} style={{ ...inputStyle, width: 80 }} className="ltr-isolate" />
           </Field>
         </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: testBypassEnabled ? colors.dangerBg : colors.canvas,
+            borderRadius: 8,
+            padding: '10px 12px',
+            marginTop: 12,
+          }}
+        >
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', flex: 1 }}>
+            <input
+              type="checkbox"
+              checked={testBypassEnabled}
+              onChange={(e) => setTestBypassEnabled(e.target.checked)}
+            />
+            <span style={{ color: testBypassEnabled ? colors.danger : colors.text }}>
+              تفعيل رمز اختبار ثابت (0000) لأغراض الاختبار فقط
+            </span>
+          </label>
+        </div>
+        {testBypassEnabled && (
+          <p style={{ fontSize: 11, color: colors.danger, marginTop: 6 }}>
+            ⚠ عند التفعيل، الرمز 0000 سيُقبل دائما كرمز صحيح لأي عملية تحقق (تسجيل دخول العملاء أو تأكيد الطلبات عالية القيمة). عطّل هذا الخيار قبل الإطلاق الفعلي.
+          </p>
+        )}
+
         <button onClick={saveThresholdSettings} style={{ ...btnPrimary, marginTop: 10 }}>حفظ</button>
         {thresholdStatus && (
           <p style={{ fontSize: 11, color: thresholdStatus.type === 'error' ? colors.danger : colors.success, marginTop: 8 }}>

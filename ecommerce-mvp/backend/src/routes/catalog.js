@@ -29,15 +29,17 @@ router.get('/delivery-zones', async (req, res, next) => {
 });
 
 // GET /catalog/products — search/filter/list active products (FR-CAT-003)
+// ?deliverySpeed=STANDARD|RAPID filters by the admin-set delivery speed flag
 router.get('/products', async (req, res, next) => {
   try {
-    const { categoryId, brandId, search } = req.query;
+    const { categoryId, brandId, search, deliverySpeed } = req.query;
 
     const products = await prisma.product.findMany({
       where: {
         active: true,
         ...(categoryId && { categoryId }),
         ...(brandId && { brandId }),
+        ...(deliverySpeed && { deliverySpeed }),
         ...(search && {
           OR: [
             { nameAr: { contains: search, mode: 'insensitive' } },
