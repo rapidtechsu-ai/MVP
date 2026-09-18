@@ -3,10 +3,96 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const requireRole = require('../middleware/requireRole');
 const auditLog = require('../middleware/auditLog');
-const { createUploadUrl, deleteObject, isConfigured, MAX_FILE_SIZE_BYTES, ALLOWED_CONTENT_TYPES } = require('../services/storageService');
+const { createUploadUrl, deleteObject, uploadBuffer, isConfigured, MAX_FILE_SIZE_BYTES, ALLOWED_CONTENT_TYPES } = require('../services/storageService');
+const { assertSafeUrl, safeFetch } = require('../services/safeFetch');
 const { calculateAndRecordPrice } = require('../services/pricingEngine');
 
 const prisma = new PrismaClient();
+
+function extractMetaTag(html, property) {
+  // Open Graph tags can appear as <meta property="og:x" content="y"> or
+  // with attribute order reversed — this covers both without needing a
+  // full HTML parser dependency just for a few known tag names.
+  const patterns = [
+    new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']*)["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${property}["']`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+// POST /admin/products/import-url — pulls og:title / og:description /
+// og:image from a pasted product page URL to prefill the "New Product"
+// form. Deliberately limited to these three Open Graph tags rather than
+// scraping a page's actual spec table or full image gallery: OG tags are
+// metadata a site publishes specifically so its pages preview well when
+// shared elsewhere (the same mechanism WhatsApp/Slack link previews use),
+// which is a meaningfully different — and safer — thing to rely on than
+// bulk-copying a competitor's proprietary content and photos.
+router.post('/import-url', requireRole('OPERATIONS'), async (req, res, next) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'url is required.' });
+
+    const safeUrl = await assertSafeUrl(url);
+    const { buffer: htmlBuffer, contentType: pageContentType } = await safeFetch(safeUrl.href);
+
+    if (!pageContentType.includes('text/html')) {
+      return res.status(400).json({ error: 'الرابط لا يشير إلى صفحة ويب صالحة.' });
+    }
+
+    const html = htmlBuffer.toString('utf8');
+
+    const ogTitle = extractMetaTag(html, 'og:title');
+    const ogDescription = extractMetaTag(html, 'og:description');
+    let ogImage = extractMetaTag(html, 'og:image');
+
+    // Fallbacks for pages with incomplete Open Graph tags
+    const titleFallback = !ogTitle && html.match(/<title>([^<]*)<\/title>/i);
+    const descFallback = !ogDescription && html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i);
+
+    let imageUrl = null;
+    let imageWarning = null;
+
+    if (ogImage) {
+      try {
+        // og:image can be relative — resolve against the page's own URL
+        const resolvedImageUrl = new URL(ogImage, safeUrl.href).href;
+        const safeImageUrl = await assertSafeUrl(resolvedImageUrl);
+        const { buffer: imageBuffer, contentType: imageContentType } = await safeFetch(safeImageUrl.href);
+
+        if (!ALLOWED_CONTENT_TYPES.includes(imageContentType)) {
+          imageWarning = 'تعذر استيراد الصورة (نوع ملف غير مدعوم).';
+        } else if (imageBuffer.length > MAX_FILE_SIZE_BYTES) {
+          imageWarning = 'تعذر استيراد الصورة (حجم كبير جدا).';
+        } else {
+          imageUrl = await uploadBuffer({
+            buffer: imageBuffer,
+            contentType: imageContentType,
+            keyPrefix: 'imports',
+          });
+        }
+      } catch (err) {
+        imageWarning = 'تعذر تحميل صورة المنتج من هذا الرابط.';
+      }
+    }
+
+    res.json({
+      nameSuggestion: ogTitle || (titleFallback ? titleFallback[1] : null),
+      descriptionSuggestion: ogDescription || (descFallback ? descFallback[1] : null),
+      imageUrl,
+      imageWarning,
+    });
+  } catch (err) {
+    if (err.message && !err.message.startsWith('Cannot ')) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+});
 
 // GET /admin/products/brands — for the "new product" and device-picker forms.
 // catalog.js only exposes /categories publicly; brands didn't have a
@@ -58,12 +144,16 @@ router.post(
     try {
       const {
         nameAr, nameEn, sku, model, categoryId, brandId,
-        productType, warranty, description,
-        supplierId, costAed,
+        productType, warranty, description, deliverySpeed,
+        supplierId, costAed, importedImageUrl,
       } = req.body;
 
       if (!nameAr || !sku || !categoryId) {
         return res.status(400).json({ error: 'nameAr, sku, and categoryId are required.' });
+      }
+
+      if (deliverySpeed && !['STANDARD', 'RAPID'].includes(deliverySpeed)) {
+        return res.status(400).json({ error: 'deliverySpeed must be STANDARD or RAPID.' });
       }
 
       const existing = await prisma.product.findUnique({ where: { sku } });
@@ -82,8 +172,19 @@ router.post(
           productType: productType === 'ACCESSORY' ? 'ACCESSORY' : 'DEVICE',
           warranty: warranty || null,
           description: description || null,
+          ...(deliverySpeed && { deliverySpeed }),
         },
       });
+
+      // Links the image the URL-importer already uploaded to storage
+      // (under imports/) to this newly created product. The file itself
+      // isn't moved — the ProductImage row just points at wherever
+      // uploadBuffer() put it.
+      if (importedImageUrl) {
+        await prisma.productImage.create({
+          data: { productId: product.id, url: importedImageUrl, sortOrder: 0 },
+        });
+      }
 
       if (supplierId && costAed) {
         await prisma.supplierProduct.create({

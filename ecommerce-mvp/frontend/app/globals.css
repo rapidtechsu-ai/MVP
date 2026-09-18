@@ -44,3 +44,11 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Hides the scrollbar on the product image carousel (ProductGallery.js)
+   while keeping native touch/scroll behavior intact. scrollbarWidth in
+   the component's inline style covers Firefox; this covers WebKit
+   (Chrome/Safari), which has no inline-style equivalent. */
+.carousel-scroll-hide::-webkit-scrollbar {
+  display: none;
+}

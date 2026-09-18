@@ -83,9 +83,39 @@ async function deleteObject(publicUrl) {
   await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
 
+/**
+ * Uploads a buffer directly from the server (not via presigned URL).
+ * Used specifically by the "import from URL" feature, where the server
+ * itself has already downloaded the external image and needs to copy
+ * it into our own storage — there's no browser file input involved in
+ * that flow, so the presigned-URL pattern used by createUploadUrl()
+ * doesn't apply here.
+ */
+async function uploadBuffer({ buffer, contentType, keyPrefix }) {
+  if (!isConfigured()) {
+    throw new Error('Image storage is not configured. Set S3_* environment variables.');
+  }
+
+  const extension = contentType.split('/')[1] || 'jpg';
+  const key = `${keyPrefix}/${crypto.randomUUID()}.${extension}`;
+
+  const client = getClient();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    })
+  );
+
+  return `${PUBLIC_URL_BASE}/${key}`;
+}
+
 module.exports = {
   isConfigured,
   createUploadUrl,
+  uploadBuffer,
   deleteObject,
   MAX_FILE_SIZE_BYTES,
   ALLOWED_CONTENT_TYPES,

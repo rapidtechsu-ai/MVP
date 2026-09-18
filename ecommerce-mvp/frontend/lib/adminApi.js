@@ -180,6 +180,15 @@ export async function createProduct(data) {
   return handle(res);
 }
 
+export async function importProductFromUrl(url) {
+  const res = await fetch(`${API_BASE_URL}/admin/products/import-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ url }),
+  });
+  return handle(res);
+}
+
 export async function getBrands() {
   const res = await fetch(`${API_BASE_URL}/admin/products/brands`, { cache: 'no-store', headers: authHeaders() });
   return handle(res, []);

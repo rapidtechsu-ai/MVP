@@ -8,6 +8,8 @@ import {
   getBrands,
   getCategoriesForAdmin,
   getAdminSuppliers,
+  importProductFromUrl,
+  confirmImageUpload,
 } from '../../../../../lib/adminApi';
 
 export default function AdminNewProductPage() {
@@ -23,6 +25,7 @@ export default function AdminNewProductPage() {
   const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [productType, setProductType] = useState('DEVICE');
+  const [deliverySpeed, setDeliverySpeed] = useState('STANDARD');
   const [warranty, setWarranty] = useState('');
   const [description, setDescription] = useState('');
   const [supplierId, setSupplierId] = useState('');
@@ -30,6 +33,12 @@ export default function AdminNewProductPage() {
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importedImageUrl, setImportedImageUrl] = useState(null);
+  const [importedImageWarning, setImportedImageWarning] = useState(null);
 
   useEffect(() => {
     Promise.all([getCategoriesForAdmin(), getBrands(), getAdminSuppliers()]).then(
@@ -41,6 +50,30 @@ export default function AdminNewProductPage() {
       }
     );
   }, []);
+
+  async function handleImport() {
+    if (!importUrl.trim()) {
+      setImportError('يرجى لصق رابط صفحة المنتج.');
+      return;
+    }
+    setImporting(true);
+    setImportError('');
+    setImportedImageWarning(null);
+    try {
+      const result = await importProductFromUrl(importUrl.trim());
+      if (result.nameSuggestion) setNameAr(result.nameSuggestion);
+      if (result.descriptionSuggestion) setDescription(result.descriptionSuggestion);
+      if (result.imageUrl) setImportedImageUrl(result.imageUrl);
+      if (result.imageWarning) setImportedImageWarning(result.imageWarning);
+      if (!result.nameSuggestion && !result.descriptionSuggestion && !result.imageUrl) {
+        setImportError('لم يتم العثور على بيانات قابلة للاستيراد في هذا الرابط. يمكنك تعبئة الحقول يدويا.');
+      }
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -61,11 +94,25 @@ export default function AdminNewProductPage() {
         categoryId,
         brandId: brandId || undefined,
         productType,
+        deliverySpeed,
         warranty: warranty || undefined,
         description: description || undefined,
         supplierId: supplierId || undefined,
         costAed: costAed || undefined,
       });
+
+      // The imported image was already uploaded to storage during import
+      // (it has no home until a product exists) — now that the product is
+      // created, attach it to the new product's gallery as the first photo.
+      if (importedImageUrl) {
+        try {
+          await confirmImageUpload(product.id, importedImageUrl);
+        } catch {
+          // Non-fatal — the product itself was created successfully;
+          // the image can still be added manually from the edit page.
+        }
+      }
+
       router.push(`/admin/products/${product.id}`);
     } catch (err) {
       setError(err.message);
@@ -79,6 +126,38 @@ export default function AdminNewProductPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <a href="/admin/products" style={{ color: colors.textSecondary }}>→</a>
         <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>منتج جديد</p>
+      </div>
+
+      <div style={{ background: colors.canvas, border: `1px solid ${colors.border}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>استيراد من رابط منتج (اختياري)</p>
+        <p style={{ fontSize: 11, color: colors.textMuted, margin: '0 0 10px' }}>
+          يقوم هذا فقط باستيراد العنوان والوصف وصورة واحدة تمثيلية من الرابط — المواصفات التفصيلية تبقى يدوية.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            placeholder="https://example.com/product/..."
+            style={{ ...inputStyle, flex: 1 }}
+            className="ltr-isolate"
+          />
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={importing}
+            style={{ fontSize: 12, height: 32, padding: '0 16px', borderRadius: 6, border: 'none', background: colors.primary, color: '#fff', cursor: 'pointer', opacity: importing ? 0.6 : 1, whiteSpace: 'nowrap' }}
+          >
+            {importing ? 'جارٍ الاستيراد...' : 'استيراد'}
+          </button>
+        </div>
+        {importError && <p style={{ fontSize: 11, color: colors.danger, marginTop: 8 }}>{importError}</p>}
+        {importedImageWarning && <p style={{ fontSize: 11, color: colors.warning, marginTop: 8 }}>{importedImageWarning}</p>}
+        {importedImageUrl && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <img src={importedImageUrl} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, border: `1px solid ${colors.border}` }} />
+            <span style={{ fontSize: 11, color: colors.success }}>تم استيراد الصورة — ستُضاف عند إنشاء المنتج.</span>
+          </div>
+        )}
       </div>
 
       <form
@@ -117,6 +196,12 @@ export default function AdminNewProductPage() {
             <select value={productType} onChange={(e) => setProductType(e.target.value)} style={inputStyle}>
               <option value="DEVICE">جهاز</option>
               <option value="ACCESSORY">إكسسوار</option>
+            </select>
+          </Field>
+          <Field label="سرعة التوصيل">
+            <select value={deliverySpeed} onChange={(e) => setDeliverySpeed(e.target.value)} style={inputStyle}>
+              <option value="STANDARD">توصيل خلال 24 ساعة (عادي)</option>
+              <option value="RAPID">توصيل سريع</option>
             </select>
           </Field>
           <Field label="الضمان (اختياري)">
